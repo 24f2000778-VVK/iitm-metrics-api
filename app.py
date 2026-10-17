@@ -1,3 +1,4 @@
+
 import time
 import uuid
 
@@ -10,7 +11,7 @@ ALLOWED_ORIGIN = "https://dash-j3abmr.example.com"
 
 app = FastAPI(title="CORS-Aware Metrics API")
 
-# Handle CORS preflight requests through FastAPI's standard middleware.
+# Standard CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[ALLOWED_ORIGIN],
@@ -25,10 +26,27 @@ app.add_middleware(
 async def add_required_headers(request, call_next):
     start_time = time.perf_counter()
     request_id = str(uuid.uuid4())
+    origin = request.headers.get("origin")
 
     response = await call_next(request)
 
+    # Explicitly permit only the assigned origin.
+    if origin == ALLOWED_ORIGIN:
+        response.headers["Access-Control-Allow-Origin"] = ALLOWED_ORIGIN
+        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response.headers["Access-Control-Max-Age"] = "600"
+        response.headers["Vary"] = "Origin"
+
+        requested_headers = request.headers.get(
+            "access-control-request-headers"
+        )
+        if requested_headers:
+            response.headers["Access-Control-Allow-Headers"] = (
+                requested_headers
+            )
+
     elapsed = max(0.0, time.perf_counter() - start_time)
+
     response.headers["X-Request-ID"] = request_id
     response.headers["X-Process-Time"] = f"{elapsed:.6f}"
 
@@ -36,9 +54,12 @@ async def add_required_headers(request, call_next):
 
 
 @app.get("/stats")
-async def stats(values: str = Query(..., description="Comma-separated integers")):
+async def stats(
+    values: str = Query(..., description="Comma-separated integers")
+):
     try:
         parts = values.split(",")
+
         if not parts or any(part.strip() == "" for part in parts):
             raise ValueError
 
@@ -47,7 +68,9 @@ async def stats(values: str = Query(..., description="Comma-separated integers")
     except (TypeError, ValueError):
         return JSONResponse(
             status_code=400,
-            content={"detail": "values must be comma-separated integers"},
+            content={
+                "detail": "values must be comma-separated integers"
+            },
         )
 
     total = sum(nums)
@@ -64,4 +87,7 @@ async def stats(values: str = Query(..., description="Comma-separated integers")
 
 @app.get("/")
 async def root():
-    return {"status": "ok", "endpoint": "/stats?values=1,2,3"}
+    return {
+        "status": "ok",
+        "endpoint": "/stats?values=1,2,3",
+    }

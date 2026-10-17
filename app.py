@@ -35,7 +35,8 @@ async def required_headers_and_cors(request: Request, call_next):
         response.headers["Access-Control-Allow-Origin"] = ALLOWED_ORIGIN
         response.headers["Vary"] = "Origin"
     else:
-        response.headers.pop("Access-Control-Allow-Origin", None)
+        if "Access-Control-Allow-Origin" in response.headers:
+            del response.headers["Access-Control-Allow-Origin"]
     return response
 
 @app.get("/stats")
